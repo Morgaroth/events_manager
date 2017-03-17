@@ -1,7 +1,6 @@
-package io.github.morgaroth.eventsmanger
+package io.github.morgaroth.eventsmanger.evdev
 
 import java.nio.ShortBuffer
-import java.util.Locale
 
 
 object InputEvent {
@@ -792,7 +791,6 @@ object InputEvent {
 
 case class InputEvent(time_sec: Long, time_usec: Long, kind: Short, code: Short, value: Int, source: String) {
   override def toString: String = {
-    //    f"Event: time $time_sec%10d, type $kind%d, code $code%d, value $value%d"
-    f"Event: time $time_sec%d.$time_usec%06d, type $kind%d, code $code%d, value $value%d"
+    f"Event: time $time_sec%d.$time_usec%06d, type $kind%d, code $code%3d, value $value%2d ($source)"
   }
 }

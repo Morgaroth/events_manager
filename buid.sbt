@@ -9,3 +9,9 @@ scalaVersion := "2.12.1"
 sourceDirectory in nativeCompile := sourceDirectory.value / "main" / "native"
 
 target in javah := sourceDirectory.value / "main" / "native"
+
+val akka = "2.4.17"
+
+libraryDependencies ++= Seq(
+  "com.typesafe.akka" %% "akka-stream" % akka
+)
