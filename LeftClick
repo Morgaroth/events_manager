@@ -1,0 +1,16 @@
+
+Python
+event at 1489490112.822431, code 04, type 04, val 589825
+event at 1489490112.822431, code 272, type 01, val 01
+event at 1489490112.822431, code 00, type 00, val 00
+event at 1489490113.158457, code 04, type 04, val 589825
+event at 1489490113.158457, code 272, type 01, val 00
+event at 1489490113.158457, code 00, type 00, val 00
+
+Scala
+kind = 4, code = 4, value = 589825
+kind = 1, code = 272, value = 1
+kind = 0, code = 0, value = 0
+kind = 4, code = 4, value = 589825
+kind = 1, code = 272, value = 0
+kind = 0, code = 0, value = 0
