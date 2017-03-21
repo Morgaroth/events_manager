@@ -2,6 +2,8 @@ package io.github.morgaroth.eventsmanger.evdev
 
 import java.nio.ShortBuffer
 
+import org.joda.time.DateTime
+
 
 object InputEvent {
   /**
@@ -790,7 +792,10 @@ object InputEvent {
 }
 
 case class InputEvent(time_sec: Long, time_usec: Long, kind: Short, code: Short, value: Int, source: String) {
+  val millis = time_sec * 1000 + time_usec / 1000
+  val ts = new DateTime(millis)
+
   override def toString: String = {
-    f"Event: time $time_sec%d.$time_usec%06d, type $kind%d, code $code%3d, value $value%2d ($source)"
+    f"Event: time $time_sec%d.$time_usec%06d ts: $millis (${System.currentTimeMillis()}), type $kind%d, code $code%3d, value $value%2d ($source)"
   }
 }
