@@ -33,11 +33,22 @@ object Main {
 
     val acceptableBreak = Minutes.minutes(5)
 
+    def logger[T](tag: String)(d: T): T = {
+      println(s"$tag: $d")
+      d
+    }
+
     val reducerFlow: Sink[InputEvent, NotUsed] = Flow[InputEvent]
       .groupedWithin(100, 1.second)
-      .map(_.head)
+      .map { events =>
+        val sorted = events.toList.map(x => x.time_sec -> x).sortBy(_._1)
+        sorted(sorted.length/2)._2
+      }
       .groupedWithin(Int.MaxValue, 1.second)
-      .map(_.head)
+      .map { events =>
+        val sorted = events.toList.map(x => x.time_sec -> x).sortBy(_._1)
+        sorted(sorted.length/2)._2
+      }
       .statefulMapConcat { () =>
         var lastSec = -1l
         (ev: InputEvent) => {
@@ -50,6 +61,7 @@ object Main {
       .groupedWithin(Int.MaxValue, 2.minutes)
       .map(_.head._2.ts.withMillisOfSecond(0).withSecondOfMinute(0))
       .concatSubstreams
+      .map(logger("\t\tby-minute"))
       .statefulMapConcat { () =>
         var prev: DateTime = null
         (ev: DateTime) => {
@@ -60,9 +72,9 @@ object Main {
       }.splitWhen(_._1).map(_._2).fold((null: DateTime, null: DateTime)) {
       case ((null, _), start) => (start, null)
       case (x, next) => (x._1, next)
-    }
-      .filter(x => x._1 != null && x._2 != null)
+    }.filter(x => x._1 != null && x._2 != null)
       .concatSubstreams
+      .map(logger("\t\t\tready"))
       .sliding(2).map(x => (x.head, x.last))
       .mapConcat {
         case ((start1, end1), (start2, _)) => List(Window.present(start1, end1), Window.absent(end1, start2))

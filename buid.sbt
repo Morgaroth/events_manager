@@ -11,3 +11,5 @@ libraryDependencies ++= Seq(
   "joda-time" % "joda-time" % "2.9.7",
   "org.joda" % "joda-convert" % "1.8"
 )
+
+enablePlugins(JavaAppPackaging)
