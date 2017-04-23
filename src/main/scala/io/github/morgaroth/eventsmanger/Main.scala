@@ -1,13 +1,11 @@
 package io.github.morgaroth.eventsmanger
 
-import akka.NotUsed
 import akka.actor.ActorSystem
-import akka.stream.{ActorMaterializer, Materializer}
-import akka.stream.scaladsl.{Flow, Sink}
-import io.github.morgaroth.eventsmanger.evdev.InputEvent
-import org.joda.time.{DateTime, Minutes}
+import akka.stream.ActorMaterializer
+import akka.stream.scaladsl.{Sink, Source}
+import com.typesafe.config.ConfigFactory
+import io.github.morgaroth.eventsmanger.evdev.{InputEvent, InputEventPublisher}
 
-import scala.concurrent.duration._
 /*
 https://github.com/progman32/evdev-java/blob/master/native/evdev-java.c
 https://github.com/progman32/evdev-java/blob/master/src/com/dgis/input/evdev/EventDevice.java
@@ -20,9 +18,13 @@ object Main {
     implicit val system = ActorSystem()
     implicit val mat = ActorMaterializer()
 
-    val grouper = new Grouper()
-    val collector = new DataCollector("/dev/input/event4", "/dev/input/event5")
-    val dbSaver = new PostgresSaver()
+    InputEventPublisher.populateWorkersFor(system, "/dev/input/event4", "/dev/input/event5")
+
+    Source
+      .fromGraph(EventBusSource[InputEvent])
+      .via(Grouper())
+      .via(PostgresSaver(ConfigFactory.load().getConfig("database")))
+      .runWith(Sink.foreach(println(_)))
 
   }
 }

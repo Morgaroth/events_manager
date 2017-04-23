@@ -2,10 +2,13 @@ package io.github.morgaroth.eventsmanger
 
 import java.util.UUID
 
-import akka.stream.scaladsl.Flow
+import akka.stream.stage._
+import akka.stream.{Attributes, FlowShape, Inlet, Outlet}
 import com.typesafe.config.Config
 import io.github.morgaroth.eventsmanger.BetBlocksPostgresDriver.api._
 import org.joda.time.DateTime
+
+import scala.util.{Failure, Success}
 
 case class Window(start: DateTime, end: DateTime, kind: WindowKind, state: WindowState = NotChecked, tags: List[String] = List.empty, id: UUID = UUID.randomUUID)
 
@@ -63,8 +66,31 @@ object db {
 }
 
 
-class PostgresSaver(config: Config) {
-  private val DB = Database.forConfig("", config)
+case class PostgresSaver(config: Config) extends GraphStage[FlowShape[Window, Window]] {
 
-  val flow = Flow[Window].mapAsync(5)(x => DB.run(db.windows += x).map(_ => x))
+  val in = Inlet[Window]("PostgresSaver.in")
+  val out = Outlet[Window]("PostgresSaver.out")
+
+  val shape = FlowShape.of(in, out)
+
+  override def createLogic(inheritedAttributes: Attributes): GraphStageLogic =
+    new GraphStageLogic(shape) with StageLogging {
+      private val DB = Database.forConfig("", config)
+
+      setHandler(in, new InHandler {
+        override def onPush(): Unit = {
+          val elem = grab(in)
+          DB.run(db.windows += elem).onComplete {
+            case Success(_) => push(out, elem)
+            case Failure(t) =>
+              log.error(t, s"error during save window $elem")
+          }
+        }
+
+        override def onUpstreamFinish(): Unit = {
+          DB.close()
+          complete(out)
+        }
+      })
+    }
 }

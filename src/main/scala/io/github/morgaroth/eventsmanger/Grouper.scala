@@ -1,8 +1,6 @@
 package io.github.morgaroth.eventsmanger
 
 import akka.NotUsed
-import akka.actor.ActorSystem
-import akka.stream.Materializer
 import akka.stream.scaladsl.Flow
 import io.github.morgaroth.eventsmanger.evdev.InputEvent
 import org.joda.time.{DateTime, Minutes}
@@ -12,10 +10,8 @@ import scala.concurrent.duration._
 /**
   * Created by PRV on 23.03.2017.
   */
-class Grouper()(implicit ac: ActorSystem, mat: Materializer) {
-
-
-  val flow: Flow[InputEvent, Window, NotUsed] = {
+object Grouper {
+  def apply(): Flow[InputEvent, Window, NotUsed] = {
 
     val acceptableBreak = Minutes.minutes(5)
 

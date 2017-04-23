@@ -4,8 +4,8 @@ import java.io._
 import java.nio.ByteBuffer
 
 import akka.NotUsed
-import akka.actor.ActorSystem
-import akka.stream.scaladsl.{Flow, Sink, Source}
+import akka.actor.{ActorRef, ActorSystem}
+import akka.stream.scaladsl.{Flow, GraphDSL, Merge, Sink, Source}
 import akka.stream.{Materializer, OverflowStrategy}
 import io.github.morgaroth.eventsmanger.evdev.{EvDevSource, InputEvent}
 
@@ -29,5 +29,30 @@ class DataCollector(sources: String*)(implicit actorSystem: ActorSystem, mat: Ma
       }
       Some(f)
     } else None
+  }
+}
+
+object DataCollector2 {
+  def apply(sources: String*) = {
+    Source.fromGraph(GraphDSL.create() { implicit b =>
+
+      val inputs = sources.filter { path =>
+        val file = new File(path)
+        println(s"Could be $path readable? ${file.canRead}")
+        file.canRead
+      }.map(x => new File(x))
+
+      val source: Source[InputEvent, ActorRef] =
+        Source.actorRef[(ByteBuffer, String)](Int.MaxValue, OverflowStrategy.dropNew)
+          .map { case (buf, s) => InputEvent.parse(buf.asShortBuffer(), s) }
+
+      inputs.foreach { input =>
+        EvDevSource(input)(source ! _)
+      }
+
+      val merge = Merge.apply(sources.length)
+
+      source.shape
+    })
   }
 }

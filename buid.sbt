@@ -9,6 +9,7 @@ val slick = "3.2.0-M2"
 
 libraryDependencies ++= Seq(
   "com.typesafe.akka" %% "akka-stream" % akka,
+  "com.typesafe.akka" %% "akka-http" % "10.0.5",
   "joda-time" % "joda-time" % "2.9.7",
   "org.joda" % "joda-convert" % "1.8",
   //  "com.typesafe.slick" %% "slick" % slick,
