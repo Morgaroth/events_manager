@@ -8,6 +8,7 @@ import com.typesafe.config.Config
 import io.github.morgaroth.eventsmanger.BetBlocksPostgresDriver.api._
 import org.joda.time.DateTime
 
+import scala.concurrent.ExecutionContext
 import scala.util.{Failure, Success}
 
 case class Window(start: DateTime, end: DateTime, kind: WindowKind, state: WindowState = NotChecked, tags: List[String] = List.empty, id: UUID = UUID.randomUUID)
@@ -62,11 +63,20 @@ class Windows(tag: Tag) extends Table[Window](tag, "times") with CustomMappers {
 }
 
 object db {
+  val driver = MyPostgresDriver
+
   val windows = TableQuery[Windows]
+
+  val allTables = List(windows)
+
+  def schema(): driver.DDL = {
+    import driver.api._
+    allTables.map(_.schema).reduce(_ ++ _)
+  }
 }
 
 
-case class PostgresSaver(config: Config) extends GraphStage[FlowShape[Window, Window]] {
+case class PostgresSaver(config: Config)(implicit ex: ExecutionContext) extends GraphStage[FlowShape[Window, Window]] {
 
   val in = Inlet[Window]("PostgresSaver.in")
   val out = Outlet[Window]("PostgresSaver.out")
@@ -76,6 +86,7 @@ case class PostgresSaver(config: Config) extends GraphStage[FlowShape[Window, Wi
   override def createLogic(inheritedAttributes: Attributes): GraphStageLogic =
     new GraphStageLogic(shape) with StageLogging {
       private val DB = Database.forConfig("", config)
+      FlyWayEvolutions.migrate(config)
 
       setHandler(in, new InHandler {
         override def onPush(): Unit = {
@@ -90,6 +101,12 @@ case class PostgresSaver(config: Config) extends GraphStage[FlowShape[Window, Wi
         override def onUpstreamFinish(): Unit = {
           DB.close()
           complete(out)
+        }
+      })
+
+      setHandler(out, new OutHandler {
+        override def onPull(): Unit = {
+          pull(in)
         }
       })
     }

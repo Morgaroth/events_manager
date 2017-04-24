@@ -15,7 +15,7 @@ import scala.util.Success
 /**
   * Created by PRV on 27.03.2017.
   */
-object Tester extends App {
+class Tester extends App {
 
 
   val questionsN = 10

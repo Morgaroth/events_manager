@@ -9,13 +9,14 @@ import akka.util.Timeout
 import scala.collection.mutable
 import scala.concurrent.Await
 import scala.concurrent.duration._
+import scala.reflect.{ClassTag, _}
 import scala.util.Try
 
 object EventBusSource {
-  def apply[T](implicit system: ActorSystem): EventBusSource[T] = new EventBusSource[T](system)
+  def apply[T: ClassTag](implicit system: ActorSystem): EventBusSource[T] = new EventBusSource[T](system)
 }
 
-class EventBusSource[T](system: ActorSystem) extends GraphStage[SourceShape[T]] {
+class EventBusSource[T: ClassTag](system: ActorSystem) extends GraphStage[SourceShape[T]] {
 
   case object Halt
 
@@ -45,7 +46,7 @@ class EventBusSource[T](system: ActorSystem) extends GraphStage[SourceShape[T]] 
 
   override def createLogic(inheritedAttributes: Attributes): GraphStageLogic = new GraphStageLogic(shape) {
     implicit val tm: Timeout = 1.second
-    val actor = system.actorOf(Props(new Collector2(classOf[T])))
+    val actor = system.actorOf(Props(new Collector2(classTag[T].runtimeClass)))
 
     def get1 = {
       Await.result((actor ? 1).mapTo[List[T]], 2.second)
@@ -53,7 +54,7 @@ class EventBusSource[T](system: ActorSystem) extends GraphStage[SourceShape[T]] 
 
     setHandler(out, new OutHandler {
       override def onPull(): Unit = {
-        push(out, get1.head)
+        get1.headOption.foreach(push(out, _))
       }
     })
 

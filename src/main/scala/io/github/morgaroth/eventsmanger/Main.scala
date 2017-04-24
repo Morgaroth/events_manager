@@ -12,11 +12,21 @@ https://github.com/progman32/evdev-java/blob/master/src/com/dgis/input/evdev/Eve
 http://stackoverflow.com/questions/3662368/dev-input-keyboard-format
  */
 
+
+/*
+
+
+
+docker run -d --restart always --name events-manager-pg -p 5440:5432 morgaroth/events-manager-pg:latest
+
+
+ */
 object Main {
 
   def main(args: Array[String]): Unit = {
     implicit val system = ActorSystem()
     implicit val mat = ActorMaterializer()
+    import system.dispatcher
 
     InputEventPublisher.populateWorkersFor(system, "/dev/input/event4", "/dev/input/event5")
 
@@ -25,6 +35,5 @@ object Main {
       .via(Grouper())
       .via(PostgresSaver(ConfigFactory.load().getConfig("database")))
       .runWith(Sink.foreach(println(_)))
-
   }
 }

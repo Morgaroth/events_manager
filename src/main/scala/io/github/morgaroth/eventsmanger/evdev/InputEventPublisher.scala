@@ -9,7 +9,7 @@ import akka.actor.{Actor, ActorLogging, ActorSystem, Props}
 
 object InputEventPublisher {
   def populateWorkerFor(file: File, as: ActorSystem) = {
-    as.actorOf(Props(new InputEventPublisher(file)), file.getCanonicalPath)
+    as.actorOf(Props(new InputEventPublisher(file)), file.getCanonicalPath.replace("/", "_"))
   }
 
   def populateWorkersFor(as: ActorSystem, sources: String*) = {
@@ -41,6 +41,8 @@ class InputEventPublisher(file: File) extends Actor with ActorLogging {
         None
     }
   }
+
+  self ! 1
 
   override def receive = {
     case 1 =>
