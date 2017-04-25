@@ -5,9 +5,6 @@ import akka.stream.scaladsl.Flow
 import io.github.morgaroth.eventsmanger.evdev.InputEvent
 import org.joda.time.{DateTime, Minutes}
 
-import scala.collection.immutable
-import scala.concurrent.duration._
-
 /**
   * Created by PRV on 23.03.2017.
   */
