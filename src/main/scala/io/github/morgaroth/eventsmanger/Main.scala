@@ -15,10 +15,7 @@ http://stackoverflow.com/questions/3662368/dev-input-keyboard-format
 
 /*
 
-
-
 docker run -d --restart always --name events-manager-pg -p 5440:5432 morgaroth/events-manager-pg:latest
-
 
  */
 object Main {

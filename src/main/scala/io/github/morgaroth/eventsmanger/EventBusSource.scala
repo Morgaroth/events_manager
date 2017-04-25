@@ -1,16 +1,16 @@
 package io.github.morgaroth.eventsmanger
 
-import akka.actor.{Actor, ActorLogging, ActorSystem, Props}
+import akka.actor.{Actor, ActorLogging, ActorSystem, Props, Stash}
 import akka.pattern.ask
 import akka.stream.stage.{GraphStage, GraphStageLogic, OutHandler}
 import akka.stream.{Attributes, Outlet, SourceShape}
 import akka.util.Timeout
 
 import scala.collection.mutable
-import scala.concurrent.Await
 import scala.concurrent.duration._
+import scala.concurrent.{Await, ExecutionContext, Promise, TimeoutException}
 import scala.reflect.{ClassTag, _}
-import scala.util.Try
+import scala.util.Success
 
 object EventBusSource {
   def apply[T: ClassTag](implicit system: ActorSystem): EventBusSource[T] = new EventBusSource[T](system)
@@ -20,19 +20,34 @@ class EventBusSource[T: ClassTag](system: ActorSystem) extends GraphStage[Source
 
   case object Halt
 
-  class Collector2(filter: Class[_]) extends Actor with ActorLogging {
+  case object Dispose
+
+  case object Get
+
+  class Collector2(filter: Class[_]) extends Actor with ActorLogging with Stash {
 
     context.system.eventStream.subscribe(self, filter)
 
     val queue = mutable.Queue.empty[T]
+    val queueReq = mutable.Queue.empty[Promise[T]]
 
     override def receive = {
       case Halt =>
         context stop self
       case data: T =>
         queue.enqueue(data)
-      case i: Int =>
-        sender() ! List.fill(i)(Try(queue.dequeue()).toOption).collect { case Some(a) => a }
+        unstashAll()
+      case Get if queue.nonEmpty =>
+        sender() ! Promise.successful(queue.dequeue())
+      case Get =>
+        val prom = Promise[T]
+        queueReq.enqueue(prom)
+        sender() ! prom
+        self ! Dispose
+      case Dispose if queue.isEmpty =>
+        stash()
+      case Dispose =>
+        queueReq.dequeue().complete(Success(queue.dequeue()))
     }
 
     override def postStop() = {
@@ -45,22 +60,34 @@ class EventBusSource[T: ClassTag](system: ActorSystem) extends GraphStage[Source
   override val shape: SourceShape[T] = SourceShape(out)
 
   override def createLogic(inheritedAttributes: Attributes): GraphStageLogic = new GraphStageLogic(shape) {
-    implicit val tm: Timeout = 1.second
+    implicit val tm: Timeout = 100.millis
     val actor = system.actorOf(Props(new Collector2(classTag[T].runtimeClass)))
 
-    def get1 = {
-      Await.result((actor ? 1).mapTo[List[T]], 2.second)
-    }
+    import system.dispatcher
+
+    def askElement: T = Await.result((actor ? Get).map {
+      case i: T => i
+      case p: Promise[T] => waitForever(p)
+    }, 250.days)
 
     setHandler(out, new OutHandler {
       override def onPull(): Unit = {
-        get1.headOption.foreach(push(out, _))
+        push(out, askElement)
       }
     })
 
     override def postStop() = {
       actor ! Halt
       super.postStop()
+    }
+  }
+
+  def waitForever[A](p: Promise[A])(implicit ex: ExecutionContext): A = {
+    try {
+      Await.result(p.future, 10.seconds)
+    } catch {
+      case _: TimeoutException =>
+        waitForever(p)
     }
   }
 }

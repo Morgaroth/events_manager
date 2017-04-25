@@ -5,6 +5,7 @@ import akka.stream.scaladsl.Flow
 import io.github.morgaroth.eventsmanger.evdev.InputEvent
 import org.joda.time.{DateTime, Minutes}
 
+import scala.collection.immutable
 import scala.concurrent.duration._
 
 /**
@@ -20,40 +21,45 @@ object Grouper {
       d
     }
 
-    Flow[InputEvent].groupedWithin(100, 1.second)
-      .map { events =>
-        val sorted = events.toList.map(x => x.time_sec -> x).sortBy(_._1)
-        sorted(sorted.length / 2)._2
-      }
-      .groupedWithin(Int.MaxValue, 1.second)
-      .map { events =>
-        val sorted = events.toList.map(x => x.time_sec -> x).sortBy(_._1)
-        sorted(sorted.length / 2)._2
-      }
-      .statefulMapConcat { () =>
-        var lastSec = -1l
-        (ev: InputEvent) => {
-          val break = ev.time_sec > lastSec && lastSec > 0
-          if (break) lastSec = ev.time_sec
+    def grouper[T, U](diffWhen: (T, T) => Boolean, reduce: List[T] => U): Flow[T, U, NotUsed] = Flow[T]
+      .statefulMapConcat(() => {
+        var lastElem: Option[T] = None
+        (ev: T) => {
+          val break = lastElem.exists(diffWhen(_, ev))
+          lastElem = Some(ev)
           List((break, ev))
         }
-      }
+      })
       .splitWhen(_._1)
-      .groupedWithin(Int.MaxValue, 2.minutes)
-      .map(_.head._2.ts.withMillisOfSecond(0).withSecondOfMinute(0))
+      .map(_._2)
+      .fold(List.empty[T]) { case (acc, ev) => acc :+ ev }
+      .map(x => reduce(x))
       .concatSubstreams
+
+
+    Flow[InputEvent]
+      .via(grouper[InputEvent, InputEvent](_.time_sec < _.time_sec, x => {
+        val size = x.size
+        x.sortBy(_.time_sec).apply(size / 2)
+      }))
+      .map(logger("\tby-second"))
+      .via(grouper[InputEvent, DateTime](_.ts.minuteOfHour != _.ts.minuteOfHour, x => {
+        val size = x.size
+        x.sortBy(_.time_sec).apply(size / 2).ts.withSecondOfMinute(0).withMillisOfSecond(0)
+      }))
       .map(logger("\tby-minute"))
-      .statefulMapConcat { () =>
+      .statefulMapConcat(() => {
         var prev: DateTime = null
         (ev: DateTime) => {
           val break = prev != null && Minutes.minutesBetween(prev, ev).isGreaterThan(acceptableBreak)
           prev = ev
           List((break, ev))
         }
-      }.splitWhen(_._1).map(_._2).fold((null: DateTime, null: DateTime)) {
+      }).splitWhen(_._1).map(_._2).fold((null: DateTime, null: DateTime)) {
       case ((null, _), start) => (start, null)
       case (x, next) => (x._1, next)
-    }.filter(x => x._1 != null && x._2 != null)
+    }
+      .filter(x => x._1 != null && x._2 != null)
       .concatSubstreams
       .map(logger("\t\tready"))
       .sliding(2).map(x => (x.head, x.last))
