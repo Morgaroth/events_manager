@@ -32,7 +32,7 @@ object InputEvent {
     * size of the input_event struct in bytes.
     */
   val STRUCT_SIZE_BYTES = 24
-  registerEvent("EV_SYN", 0x00)
+  registerEvent("EV_SYN", 0x00, "syntetic")
   registerEvent("EV_KEY", 0x01, "key")
   registerEvent("EV_REL", 0x02)
   registerEvent("EV_ABS", 0x03)
@@ -46,7 +46,7 @@ object InputEvent {
   registerEvent("EV_FF_STATUS", 0x17)
   val EV_MAX: Short = 0x1f
   val EV_CNT = EV_MAX + 1
-  registerEventType("SYN_REPORT", 0, 0x00)
+  registerEventType("SYN_REPORT", 0, 0x00, "syn space")
   registerEventType("SYN_CONFIG", 1, 0x00)
   registerEventType("SYN_MT_REPORT", 2, 0x00)
 
@@ -818,15 +818,51 @@ object InputEvent {
     val value = (d << 16) | c
     InputEvent(time_sec, time_usec, kind.toShort, code.toShort, value.toInt, source)
   }
+
+  val keyboard = Map(
+    1 -> "ESC", 2 -> "1", 3 -> "2", 4 -> "3", 5 -> "4", 6 -> "5", 7 -> "6", 8 -> "7", 9 -> "8", 10 -> "9",
+    11 -> "0", 12 -> "-", 13 -> "=", 14 -> "bcksp", 15 -> "tab", 16 -> "q", 17 -> "w", 18 -> "e", 19 -> "r",
+    20 -> "t", 21 -> "y", 22 -> "u", 23 -> "i", 24 -> "o", 25 -> "p", 26 -> "[", 27 -> "]", 28 -> "enter", 29 -> "Left Ctrl",
+    30 -> "a", 31 -> "s", 32 -> "d", 33 -> "f", 34 -> "g", 35 -> "h", 36 -> "j", 37 -> "k", 38 -> "l", 39 -> ";",
+    40 -> "'", 41 -> " ?????? ", 42 -> "L Shift", 43 -> "\"", 44 -> "z", 45 -> "x", 46 -> "c", 47 -> "v", 48 -> "b", 49 -> "n",
+    50 -> "m", 51 -> ",", 56 -> "Left Alt", 57 -> "SPACE", 59 -> "F01",
+    60 -> "F02", 61 -> "F03", 62 -> "F04", 63 -> "F05", 64 -> "F06", 65 -> "F07", 66 -> "F08", 67 -> "F09", 68 -> "F10",
+    87 -> "F11", 88 -> "F12",
+    100 -> "Right Alt", 103 -> "Up Arr", 105 -> "Left Arr", 106 -> "Right Arr", 108 -> "Down Arr",
+    110 -> "INS", 111 -> "DEL",
+    125 -> "Left Win", 126 -> "Right Win",
+  )
+
+  def eventDescription(ev: InputEvent): String = {
+    import ev.{code, kind, source, value}
+    if (kind == 0x01 && code <= 127) {
+      val name = keyboard.getOrElse(code, code.toString)
+      value match {
+        case 1 => s"Key $name down"
+        case 0 => s"Key $name up"
+        case 2 => s"key $name press"
+      }
+    } else if (kind == 0x02 && code < 2) {
+      s"Mouse ${
+        if (code == 1) {
+          if (value < 0) "up" else "down"
+        } else {
+          if (value < 0) "left" else "right"
+        }
+      }"
+    } else if (kind == 0x02 && code == 8) {
+      if (value < 0) "Scroll down" else "Scroll up"
+    } else {
+      f"$kind%d ${types.getOrElse(ev.kind, ("", s"unknown type: $kind"))._2}, code $code%3d (${values.getOrElse(code, Map.empty).getOrElse(kind, ("", s"unknown value: $kind"))._2}), value $value%2d ($source)"
+    }
+  }
 }
 
 case class InputEvent(time_sec: Long, time_usec: Long, kind: Short, code: Short, value: Int, source: String) {
   val millis = time_sec * 1000 + time_usec / 1000
   val ts = new DateTime(millis)
 
-  import InputEvent._
-
   override def toString: String = {
-    f"Event: time $time_sec%d.$time_usec%06d, type $kind%d ${types.getOrElse(kind, ("", s"unknown type: $kind"))._2}, code $code%3d (${values.getOrElse(code, Map.empty).getOrElse(kind, ("", s"unknown value: $kind"))._2}), value $value%2d ($source)"
+    f"Event: time $time_sec%d.$time_usec%06d (${ts.toString("HH:mm:ss")}), ${InputEvent.eventDescription(this)}."
   }
 }

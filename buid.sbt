@@ -2,7 +2,7 @@ name := "Events Manager"
 
 version := "1.0.0"
 
-scalaVersion := "2.12.1"
+scalaVersion := "2.12.2"
 
 val akka = "2.4.17"
 val slick = "3.2.0"

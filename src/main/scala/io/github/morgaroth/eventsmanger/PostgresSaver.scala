@@ -8,8 +8,8 @@ import com.typesafe.config.Config
 import io.github.morgaroth.eventsmanger.BetBlocksPostgresDriver.api._
 import org.joda.time.DateTime
 
-import scala.concurrent.ExecutionContext
-import scala.util.{Failure, Success}
+import scala.concurrent.duration._
+import scala.concurrent.{Await, ExecutionContext}
 
 case class Window(start: DateTime, end: DateTime, kind: WindowKind, state: WindowState = NotChecked, tags: List[String] = List.empty, id: UUID = UUID.randomUUID)
 
@@ -91,15 +91,17 @@ case class PostgresSaver(config: Config)(implicit ex: ExecutionContext) extends 
       setHandler(in, new InHandler {
         override def onPush(): Unit = {
           val elem = grab(in)
-          DB.run(db.windows += elem).onComplete {
-            case Success(_) => push(out, elem)
-            case Failure(t) =>
-              log.error(t, s"error during save window $elem")
+          val task = DB.run(db.windows += elem)
+          Await.ready(task, 1.second)
+          task.failed.foreach { t =>
+            log.error(t, s"error during save window $elem")
           }
+          push(out, elem)
         }
 
         override def onUpstreamFinish(): Unit = {
           DB.close()
+          log.info("Closing connection to DB.")
           complete(out)
         }
       })

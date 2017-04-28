@@ -11,54 +11,35 @@ import org.joda.time.{DateTime, Minutes}
 object Grouper {
   def apply(): Flow[InputEvent, Window, NotUsed] = {
 
-    val acceptableBreak = Minutes.minutes(5)
+    val acceptableBreak = Minutes.minutes(0)
 
     def logger[T](tag: String)(d: T): T = {
       println(s"$tag: $d")
       d
     }
 
-    def grouper[T, U](diffWhen: (T, T) => Boolean, reduce: List[T] => U): Flow[T, U, NotUsed] = Flow[T]
+    val f: Flow[InputEvent, (DateTime, DateTime), NotUsed] = Flow[InputEvent]
+      .filterNot(x => x.code == 0 && x.kind == 0)
+      .map(logger("ev"))
+      .map(_.ts)
       .statefulMapConcat(() => {
-        var lastElem: Option[T] = None
-        (ev: T) => {
-          val break = lastElem.exists(diffWhen(_, ev))
-          lastElem = Some(ev)
-          List((break, ev))
-        }
-      })
-      .splitWhen(_._1)
-      .map(_._2)
-      .fold(List.empty[T]) { case (acc, ev) => acc :+ ev }
-      .map(x => reduce(x))
-      .concatSubstreams
-
-
-    Flow[InputEvent]
-      .via(grouper[InputEvent, InputEvent](_.time_sec < _.time_sec, x => {
-        val size = x.size
-        x.sortBy(_.time_sec).apply(size / 2)
-      }))
-      .map(logger("\tby-second"))
-      .via(grouper[InputEvent, DateTime](_.ts.minuteOfHour != _.ts.minuteOfHour, x => {
-        val size = x.size
-        x.sortBy(_.time_sec).apply(size / 2).ts.withSecondOfMinute(0).withMillisOfSecond(0)
-      }))
-      .map(logger("\tby-minute"))
-      .statefulMapConcat(() => {
+        var first: DateTime = null
         var prev: DateTime = null
         (ev: DateTime) => {
+          if (first == null) {
+            first = ev
+          }
           val break = prev != null && Minutes.minutesBetween(prev, ev).isGreaterThan(acceptableBreak)
+          val result = if (break) {
+            val a = List(first -> prev)
+            first = ev
+            a
+          } else Nil
           prev = ev
-          List((break, ev))
+          result
         }
-      }).splitWhen(_._1).map(_._2).fold((null: DateTime, null: DateTime)) {
-      case ((null, _), start) => (start, null)
-      case (x, next) => (x._1, next)
-    }
-      .filter(x => x._1 != null && x._2 != null)
-      .concatSubstreams
-      .map(logger("\t\tready"))
+      })
+    f.map(logger("\t\tready"))
       .sliding(2).map(x => (x.head, x.last))
       .mapConcat {
         case ((start1, end1), (start2, _)) => List(Window.present(start1, end1), Window.absent(end1, start2))
