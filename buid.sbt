@@ -11,7 +11,7 @@ val pgJDBC = "42.0.0"
 
 libraryDependencies ++= Seq(
   "com.typesafe.akka" %% "akka-stream" % akka,
-  "com.typesafe.akka" %% "akka-http" % "10.0.5",
+  "com.typesafe.akka" %% "akka-http" % "10.0.6",
   "joda-time" % "joda-time" % "2.9.7",
   "org.joda" % "joda-convert" % "1.8",
   "com.typesafe.slick" %% "slick" % slick,

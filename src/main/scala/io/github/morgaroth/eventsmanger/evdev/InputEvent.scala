@@ -5,6 +5,7 @@ import java.nio.ShortBuffer
 import org.joda.time.DateTime
 
 import scala.collection.mutable
+import scala.compat.Platform
 
 
 object InputEvent {
@@ -856,6 +857,16 @@ object InputEvent {
       f"$kind%d ${types.getOrElse(ev.kind, ("", s"unknown type: $kind"))._2}, code $code%3d (${values.getOrElse(code, Map.empty).getOrElse(kind, ("", s"unknown value: $kind"))._2}), value $value%2d ($source)"
     }
   }
+
+  def tick = {
+    val ts = Platform.currentTime
+    InputEvent(ts / 1000, (ts % 1000) * 1000, -1, -1, -1, "generated")
+  }
+
+  def halt = {
+    val ts = Platform.currentTime
+    InputEvent(ts / 1000, (ts % 1000) * 1000, -2, -2, -2, "generated")
+  }
 }
 
 case class InputEvent(time_sec: Long, time_usec: Long, kind: Short, code: Short, value: Int, source: String) {
@@ -865,4 +876,8 @@ case class InputEvent(time_sec: Long, time_usec: Long, kind: Short, code: Short,
   override def toString: String = {
     f"Event: time $time_sec%d.$time_usec%06d (${ts.toString("HH:mm:ss")}), ${InputEvent.eventDescription(this)}."
   }
+
+
+  val isTick = kind == -1 && code == -1 && value == -1
+  val isHalt = kind == -2 && code == -2 && value == -2
 }

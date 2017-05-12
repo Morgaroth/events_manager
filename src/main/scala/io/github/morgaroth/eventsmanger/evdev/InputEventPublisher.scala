@@ -7,12 +7,14 @@ import java.nio.{ByteBuffer, ByteOrder}
 
 import akka.actor.{Actor, ActorLogging, ActorSystem, Props}
 
+import scala.concurrent.duration._
+
 object InputEventPublisher {
   def populateWorkerFor(file: File, as: ActorSystem) = {
     as.actorOf(Props(new InputEventPublisher(file)), file.getCanonicalPath.replace("/", "_"))
   }
 
-  def populateWorkersFor(as: ActorSystem, sources: String*) = {
+  def populateWorkersFor(as: ActorSystem, tickInterval: FiniteDuration, sources: String*) = {
     val availableFiles: Seq[File] = sources.map { path =>
       val file = new File(path)
       println(s"Could be $path readable? ${file.canRead}")
@@ -20,6 +22,7 @@ object InputEventPublisher {
     }.collect { case (f, true) => f }
 
     availableFiles.foreach(f => populateWorkerFor(f, as))
+    as.actorOf(Props(new TickEventPublisher(tickInterval)), "tick-publisher")
   }
 }
 
@@ -56,3 +59,14 @@ class InputEventPublisher(file: File) extends Actor with ActorLogging {
   }
 }
 
+case object Tick
+
+class TickEventPublisher(tickInterval: FiniteDuration) extends Actor {
+
+  context.system.scheduler.schedule(0.seconds, tickInterval, self, Tick)
+
+  override def receive: Receive = {
+    case Tick =>
+      context.system.eventStream.publish(InputEvent.tick)
+  }
+}

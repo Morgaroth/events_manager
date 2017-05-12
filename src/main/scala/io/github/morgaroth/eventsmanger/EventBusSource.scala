@@ -5,11 +5,12 @@ import akka.pattern.ask
 import akka.stream.stage.{GraphStage, GraphStageLogic, OutHandler}
 import akka.stream.{Attributes, Outlet, SourceShape}
 import akka.util.Timeout
+import io.github.morgaroth.eventsmanger.evdev.InputEvent
 
 import scala.collection.mutable
 import scala.concurrent.duration._
 import scala.concurrent.{Await, ExecutionContext, Promise, TimeoutException}
-import scala.reflect.{ClassTag, _}
+import scala.reflect._
 import scala.util.Success
 
 object EventBusSource {
@@ -77,6 +78,7 @@ class EventBusSource[T: ClassTag](system: ActorSystem) extends GraphStage[Source
     })
 
     override def postStop() = {
+      push(out, InputEvent.halt)
       actor ! Halt
       super.postStop()
     }
